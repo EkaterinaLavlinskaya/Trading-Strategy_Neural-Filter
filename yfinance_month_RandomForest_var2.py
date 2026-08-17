@@ -5,18 +5,18 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import accuracy_score, f1_score
 
-# ── 1. Загрузка данных ─────────────────────────────────────────────
+# Загрузка данных 
 data = yf.download("BZ=F", period="20y", interval="1mo")
 data.columns = data.columns.get_level_values(0)
 
-# ── 2. Целевая переменная ──────────────────────────────────────────
+#Целевая переменная
 data["Next_Close"] = data["Close"].shift(-1)
 data["Target"] = (data["Next_Close"] > data["Close"]).astype(int)
 data = data.dropna(subset=["Next_Close"])
 
 df = data.copy()
 
-# ── 3. Базовые фичи ────────────────────────────────────────────────
+# Фичи
 df["Return_1m"] = df["Close"].pct_change()
 df["Volatility"] = (df["High"] - df["Low"]) / df["Close"]
 df["Range_Position"] = (df["Close"] - df["Low"]) / (df["High"] - df["Low"])
@@ -25,7 +25,6 @@ df["SMA_6"] = df["Close"].rolling(6).mean()
 df["Deviation_3"] = df["Close"] - df["SMA_3"]
 df["Deviation_6"] = df["Close"] - df["SMA_6"]
 
-# ── 4. Новые фичи: тренд и паттерны ────────────────────────────────
 df["Trend_3_6"] = (df["SMA_3"] - df["SMA_6"]) / df["SMA_6"]
 df["Above_3m_High"] = (df["Close"] > df["Close"].rolling(3).max().shift(1)).astype(int)
 df["Below_3m_Low"] = (df["Close"] < df["Close"].rolling(3).min().shift(1)).astype(int)
@@ -38,7 +37,7 @@ df["Bearish_Engulfing"] = ((df["Close"] < df["Open"]) &
 
 df = df.dropna()
 
-# ── 5. Модель ──────────────────────────────────────────────────────
+#Модель
 feature_cols = ["Return_1m", "Volatility", "Range_Position", 
                 "SMA_3", "SMA_6", "Deviation_3", "Deviation_6", "Volume",
                 "Trend_3_6", "Above_3m_High", "Below_3m_Low", 
