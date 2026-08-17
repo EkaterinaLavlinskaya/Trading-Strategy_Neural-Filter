@@ -1,19 +1,18 @@
 import yfinance as yf
 data = yf.download("BZ=F", period="20y", interval="1mo")
 print(data.shape)
-# Сброс MultiIndex колонок
+
 data.columns = data.columns.get_level_values(0)
 
-# Теперь посмотри, что получилось
+
 print(data.columns.tolist())
 print(data.head())
-# Цена закрытия следующего месяца
+
 data["Next_Close"] = data["Close"].shift(-1)
 
 # Целевая: 1 если следующий месяц выше текущего (лонг), иначе 0 (шорт)
 data["Target"] = (data["Next_Close"] > data["Close"]).astype(int)
 
-# Убираем последнюю строку — для неё нет следующего месяца
 data = data.dropna(subset=["Next_Close"])
 print(data["Target"].value_counts())
 print(data["Target"].value_counts())
@@ -28,7 +27,7 @@ print(data[["Close", "Target"]].head(10))
 print(data[["Close", "Target"]].tail(10))
 import pandas as pd
 
-# Копируем, чтобы не мутировать исходник
+
 df = data.copy()
 
 # 1. Доходность за прошлый месяц
@@ -69,7 +68,6 @@ feature_cols = ["Return_1m", "Volatility", "Range_Position",
 X = df[feature_cols]
 y = df["Target"]
 
-# Временной сплит: обучаемся на прошлом, проверяем на будущем
 tscv = TimeSeriesSplit(n_splits=5)
 
 acc_scores, f1_scores = [], []
