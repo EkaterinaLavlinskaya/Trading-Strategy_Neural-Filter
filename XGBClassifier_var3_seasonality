@@ -1,0 +1,101 @@
+#Добавила Month, Quarter, Week_of_Year
+#смотрим эффект от сезонности
+
+import pandas as pd
+import numpy as np
+import yfinance as yf
+from xgboost import XGBClassifier
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+
+#Данные: недельные свечи
+data = yf.download("BZ=F", period="20y", interval="1wk")
+data.columns = data.columns.get_level_values(0)
+
+#  Целевая: только лонг 
+data["Next_Close"] = data["Close"].shift(-1)
+data["Target_Long"] = (data["Next_Close"] > data["Close"]).astype(int)
+data = data.dropna(subset=["Next_Close"])
+
+df = data.copy()
+
+# Базовые фичи
+df["Return_1w"] = df["Close"].pct_change()
+df["Volatility"] = (df["High"] - df["Low"]) / df["Close"]
+df["Range_Position"] = (df["Close"] - df["Low"]) / (df["High"] - df["Low"])
+df["SMA_3"] = df["Close"].rolling(3).mean()
+df["SMA_6"] = df["Close"].rolling(6).mean()
+df["Deviation_3"] = df["Close"] - df["SMA_3"]
+df["Deviation_6"] = df["Close"] - df["SMA_6"]
+
+# Отобранные фичи
+df["Trend_3_6"] = (df["SMA_3"] - df["SMA_6"]) / df["SMA_6"]
+df["Below_3w_Low"] = (df["Close"] < df["Close"].rolling(3).min().shift(1)).astype(int)
+df["Bullish_Engulfing"] = ((df["Close"] > df["Open"]) & 
+                            (df["Close"] > df["Open"].shift(1)) &
+                            (df["Open"] < df["Close"].shift(1))).astype(int)
+
+# Свечные фичи
+df["Candle_Body"] = (df["Close"] - df["Open"]) / df["Open"]
+df["Upper_Shadow"] = (df["High"] - df[["Close", "Open"]].max(axis=1)) / df["Open"]
+df["Lower_Shadow"] = (df[["Close", "Open"]].min(axis=1) - df["Low"]) / df["Open"]
+df["Is_Shooting_Star"] = ((df["Upper_Shadow"] > 2 * abs(df["Candle_Body"])) & 
+                           (df["Lower_Shadow"] < 0.3 * abs(df["Candle_Body"]))).astype(int)
+
+#  Сезонность 
+df["Month"] = df.index.month
+df["Quarter"] = df.index.quarter
+df["Week_of_Year"] = df.index.isocalendar().week.astype(int)
+
+df = df.dropna()
+
+# Модель XGBoost 
+feature_cols = [
+    "Return_1w", "Volatility", "Range_Position",
+    "SMA_3", "SMA_6", "Deviation_3", "Deviation_6", "Volume",
+    "Trend_3_6", "Below_3w_Low", "Bullish_Engulfing",
+    "Candle_Body", "Upper_Shadow", "Lower_Shadow", "Is_Shooting_Star",
+    "Month", "Quarter", "Week_of_Year"
+]
+
+X = df[feature_cols]
+y = df["Target_Long"]
+
+tscv = TimeSeriesSplit(n_splits=5)
+acc_scores, f1_scores, prec_scores, rec_scores = [], [], [], []
+
+for train_idx, test_idx in tscv.split(X):
+    X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+    y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+    
+    model = XGBClassifier(
+        n_estimators=200,
+        max_depth=4,
+        learning_rate=0.05,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        random_state=42,
+        eval_metric="logloss"
+    )
+    
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    
+    acc_scores.append(accuracy_score(y_test, y_pred))
+    f1_scores.append(f1_score(y_test, y_pred))
+    prec_scores.append(precision_score(y_test, y_pred))
+    rec_scores.append(recall_score(y_test, y_pred))
+
+print("Размер данных:", df.shape)
+print()
+print("Accuracy по фолдам:", [round(a, 3) for a in acc_scores])
+print("Средний Accuracy:", round(np.mean(acc_scores), 3))
+print()
+print("Precision (лонг):", [round(p, 3) for p in prec_scores])
+print("Средний Precision:", round(np.mean(prec_scores), 3))
+print()
+print("Recall (лонг):", [round(r, 3) for r in rec_scores])
+print("Средний Recall:", round(np.mean(rec_scores), 3))
+print()
+print("F1 по фолдам:", [round(f, 3) for f in f1_scores])
+print("Средний F1:", round(np.mean(f1_scores), 3))
