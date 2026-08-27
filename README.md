@@ -1,3 +1,6 @@
+Trading Strategy + Neural Filter
+
+
 trading-strategy-neural/
 ├── strategy.py            # основной код стратегии
 ├── backtest.py            # бэктест и симуляция сделок
@@ -5,7 +8,6 @@ trading-strategy-neural/
 ├── requirements.txt       # зависимости
 └── README.md              # описание проекта
 
-Trading Strategy + Neural Filter
 
 Перенос дипломной торговой стратегии в Python с попыткой улучшения через нейросеть.
 
