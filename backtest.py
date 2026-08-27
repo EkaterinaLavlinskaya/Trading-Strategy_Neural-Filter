@@ -102,9 +102,8 @@ def run_backtest(df, exit_mode="base"):
 
 def print_statistics(results_df):
     """Вывод статистики по сделкам."""
-    print(f"{'='*70}")
+
     print(f"СТАТИСТИКА")
-    print(f"{'='*70}")
     print(f"Всего сделок: {len(results_df)}")
     print(f"Прибыльных: {(results_df['PnL'] > 0).sum()}")
     print(f"Убыточных: {(results_df['PnL'] < 0).sum()}")
